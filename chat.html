@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Чат в реальном времени</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4a6ee0 0%, #6a3ca3 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .messages {
+            height: 500px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .message.incoming {
+            background: white;
+            border: 1px solid #e0e0e0;
+            margin-right: auto;
+        }
+        .message.outgoing {
+            background: linear-gradient(135deg, #4a6ee0 0%, #6a3ca3 100%);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+        .message .user {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .message .time {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        .input-area {
+            padding: 20px;
+            display: flex;
+            gap: 10px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+        #nameInput {
+            width: 120px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        #sendButton {
+            background: linear-gradient(135deg, #4a6ee0 0%, #6a3ca3 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .online {
+            font-size: 14px;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            <h1>💬 Общий чат</h1>
+            <div class="online">
+                <span class="dot"></span>
+                <span id="onlineCount">1</span> онлайн
+            </div>
+        </div>
+        
+        <div class="messages" id="messagesContainer">
+            <div style="text-align: center; color: #666; padding: 40px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">👋</div>
+                <h3>Добро пожаловать!</h3>
+                <p>Это общий чат в реальном времени</p>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <input type="text" id="nameInput" placeholder="Имя" value="Гость">
+            <input type="text" id="messageInput" placeholder="Введите сообщение...">
+            <button id="sendButton">Отправить</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    
+    <script>
+        // === ТВОЙ КОНФИГ FIREBASE ===
+        // Этот код уже готов, не меняй ничего!
+        const firebaseConfig = {
+            apiKey: "AIzaSyDozb-394r3thXXzLdnSE1W-n8-5ts-VLQ",
+            authDomain: "chat-66525.firebaseapp.com",
+            databaseURL: "https://chat-66525-default-rtdb.firebaseio.com", // ← ЭТО ВАЖНО!
+            projectId: "chat-66525",
+            storageBucket: "chat-66525.firebasestorage.app",
+            messagingSenderId: "553583707162",
+            appId: "1:553583707162:web:795d742acf5a4ee5fbbda3",
+            measurementId: "G-JHSN8XBHZE"
+        };
+        
+        // Инициализация Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // Переменные
+        let userName = localStorage.getItem('chat_name') || 'Гость';
+        let userId = localStorage.getItem('chat_user_id');
+        if (!userId) {
+            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('chat_user_id', userId);
+        }
+        
+        // Установка имени
+        document.getElementById('nameInput').value = userName;
+        
+        // Отправка сообщения
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const messageText = messageInput.value.trim();
+            
+            if (!messageText) return;
+            
+            // Обновляем имя если изменилось
+            const newName = document.getElementById('nameInput').value.trim() || 'Гость';
+            if (newName !== userName) {
+                userName = newName;
+                localStorage.setItem('chat_name', userName);
+            }
+            
+            // Создаем сообщение
+            const message = {
+                text: messageText,
+                user: userName,
+                userId: userId,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                timestamp: Date.now()
+            };
+            
+            // Отправляем в Firebase
+            database.ref('messages').push(message);
+            
+            // Очищаем поле ввода
+            messageInput.value = '';
+            messageInput.focus();
+            
+            // Показываем свое сообщение сразу
+            showMessage(message, true);
+        }
+        
+        // Показать сообщение
+        function showMessage(msg, isMy = false) {
+            const messagesContainer = document.getElementById('messagesContainer');
+            
+            // Убираем приветственное сообщение
+            const welcome = messagesContainer.querySelector('div[style*="text-align: center"]');
+            if (welcome) welcome.remove();
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isMy ? 'outgoing' : 'incoming'}`;
+            
+            // Если это наше сообщение, но пришло из Firebase (дубликат) - пропускаем
+            if (msg.userId === userId && !isMy) return;
+            
+            messageDiv.innerHTML = `
+                <div class="user">${msg.userId === userId ? 'Вы' : msg.user}</div>
+                <div>${msg.text}</div>
+                <div class="time">${msg.time}</div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Получаем сообщения из Firebase
+        database.ref('messages').limitToLast(50).on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            showMessage(message);
+        });
+        
+        // Онлайн статус
+        const userStatusRef = database.ref('online/' + userId);
+        
+        // Устанавливаем онлайн
+        userStatusRef.set({
+            name: userName,
+            online: true,
+            lastSeen: Date.now()
+        });
+        
+        // При закрытии страницы - оффлайн
+        window.addEventListener('beforeunload', () => {
+            userStatusRef.update({ online: false });
+        });
+        
+        // Считаем онлайн пользователей
+        database.ref('online').on('value', (snapshot) => {
+            const users = snapshot.val();
+            let onlineCount = 0;
+            
+            if (users) {
+                const now = Date.now();
+                Object.keys(users).forEach(key => {
+                    if (users[key].online && (now - users[key].lastSeen < 30000)) {
+                        onlineCount++;
+                    }
+                });
+            }
+            
+            document.getElementById('onlineCount').textContent = onlineCount;
+        });
+        
+        // Обновляем время активности
+        setInterval(() => {
+            userStatusRef.update({ lastSeen: Date.now() });
+        }, 10000);
+        
+        // Обработчики событий
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        // Сохраняем имя при изменении
+        document.getElementById('nameInput').addEventListener('change', function() {
+            userName = this.value.trim() || 'Гость';
+            localStorage.setItem('chat_name', userName);
+            userStatusRef.update({ name: userName });
+        });
+        
+        // Фокус на поле ввода
+        document.getElementById('messageInput').focus();
+    </script>
+</body>
+</html>
