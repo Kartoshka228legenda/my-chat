@@ -94,6 +94,12 @@
             transform: translateY(-2px);
         }
 
+        .auth-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .auth-switch {
             color: #4a00e0;
             background: none;
@@ -101,6 +107,13 @@
             font-size: 14px;
             cursor: pointer;
             text-decoration: underline;
+        }
+
+        .auth-error {
+            color: #ff3b30;
+            font-size: 14px;
+            margin: 10px 0;
+            min-height: 20px;
         }
 
         /* ВКЛАДКИ */
@@ -458,6 +471,11 @@
             flex-shrink: 0;
         }
 
+        #sendButton:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
         /* ПАНЕЛЬ СМАЙЛИКОВ */
         .emoji-panel {
             position: absolute;
@@ -587,6 +605,11 @@
             animation: pulse 1s infinite;
         }
 
+        .voice-record-btn:disabled {
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
         .recording-indicator {
             position: absolute;
             top: -5px;
@@ -670,6 +693,11 @@
             padding: 8px;
             cursor: pointer;
             transition: transform 0.2s;
+        }
+
+        .upload-btn:disabled {
+            color: #ccc;
+            cursor: not-allowed;
         }
 
         .file-input-hidden {
@@ -798,6 +826,10 @@
             animation: slideInRight 0.3s ease;
         }
 
+        .notification.error {
+            background: #ff3b30;
+        }
+
         @keyframes slideInRight {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
@@ -904,7 +936,8 @@
             <div id="loginForm">
                 <input type="text" id="loginUsername" class="auth-input" placeholder="Ваш никнейм" maxlength="20">
                 <input type="password" id="loginPassword" class="auth-input" placeholder="Пароль">
-                <button class="auth-button" onclick="login()">Войти</button>
+                <div class="auth-error" id="loginError"></div>
+                <button class="auth-button" id="loginButton" onclick="login()">Войти</button>
                 <button class="auth-switch" onclick="showRegister()">Нет аккаунта? Зарегистрироваться</button>
             </div>
             
@@ -912,7 +945,8 @@
                 <input type="text" id="registerUsername" class="auth-input" placeholder="Придумайте никнейм" maxlength="20">
                 <input type="password" id="registerPassword" class="auth-input" placeholder="Придумайте пароль">
                 <input type="password" id="registerConfirm" class="auth-input" placeholder="Подтвердите пароль">
-                <button class="auth-button" onclick="register()">Зарегистрироваться</button>
+                <div class="auth-error" id="registerError"></div>
+                <button class="auth-button" id="registerButton" onclick="register()">Зарегистрироваться</button>
                 <button class="auth-switch" onclick="showLogin()">Уже есть аккаунт? Войти</button>
             </div>
         </div>
@@ -1019,10 +1053,10 @@
                 <button class="upload-btn" id="fileButton" title="Отправить файл">📎</button>
                 <input type="file" id="fileInput" class="file-input-hidden" multiple>
                 
-                <button class="photo-upload-btn upload-btn" id="photoButton" title="Отправить фото">📷</button>
+                <button class="upload-btn" id="photoButton" title="Отправить фото">📷</button>
                 <input type="file" id="photoInput" accept="image/*" class="file-input-hidden" multiple>
                 
-                <button class="voice-record-btn upload-btn" id="voiceButton" title="Голосовое сообщение">
+                <button class="voice-record-btn" id="voiceButton" title="Голосовое сообщение">
                     🎤
                     <span class="recording-indicator" id="recordingIndicator"></span>
                 </button>
@@ -1068,19 +1102,19 @@
             </div>
             
             <div class="input-container">
-                <button class="upload-btn private-upload-btn" title="Отправить файл">📎</button>
+                <button class="upload-btn" id="privateFileButton" title="Отправить файл">📎</button>
                 <input type="file" id="privateFileInput" class="file-input-hidden" multiple>
                 
-                <button class="photo-upload-btn upload-btn private-upload-btn" title="Отправить фото">📷</button>
+                <button class="upload-btn" id="privatePhotoButton" title="Отправить фото">📷</button>
                 <input type="file" id="privatePhotoInput" accept="image/*" class="file-input-hidden" multiple>
                 
-                <button class="voice-record-btn upload-btn private-upload-btn" title="Голосовое сообщение">
+                <button class="voice-record-btn" id="privateVoiceButton" title="Голосовое сообщение">
                     🎤
                     <span class="recording-indicator private-recording-indicator"></span>
                 </button>
                 
                 <input type="text" id="privateMessageInput" placeholder="Личное сообщение..." autocomplete="off">
-                <button class="emoji-btn private-emoji-btn">😊</button>
+                <button class="emoji-btn" id="privateEmojiButton">😊</button>
                 <button id="privateSendButton">➤</button>
             </div>
         </div>
@@ -1128,70 +1162,147 @@
         let unreadPublic = 0;
         let unreadPrivate = 0;
         let unreadGroups = 0;
+
+        // Флаг для блокировки повторных нажатий
+        let isProcessing = false;
         
         // ============ АВТОРИЗАЦИЯ ============
         function showLogin() {
             document.getElementById('loginForm').style.display = 'block';
             document.getElementById('registerForm').style.display = 'none';
+            clearAuthErrors();
         }
         
         function showRegister() {
             document.getElementById('loginForm').style.display = 'none';
             document.getElementById('registerForm').style.display = 'block';
+            clearAuthErrors();
+        }
+
+        function clearAuthErrors() {
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('registerError').textContent = '';
         }
         
         async function register() {
+            if (isProcessing) return;
+            
             const username = document.getElementById('registerUsername').value.trim();
             const password = document.getElementById('registerPassword').value;
             const confirm = document.getElementById('registerConfirm').value;
+            const errorElement = document.getElementById('registerError');
             
-            if (!username || username.length < 3) {
-                showNotification('Никнейм должен быть не менее 3 символов');
+            errorElement.textContent = '';
+            
+            // Валидация
+            if (!username) {
+                errorElement.textContent = 'Введите никнейм';
+                return;
+            }
+            
+            if (username.length < 3) {
+                errorElement.textContent = 'Никнейм должен быть не менее 3 символов';
+                return;
+            }
+            
+            if (!/^[a-zA-Zа-яА-Я0-9_\- ]+$/.test(username)) {
+                errorElement.textContent = 'Никнейм может содержать только буквы, цифры, пробелы, дефисы и подчеркивания';
+                return;
+            }
+            
+            if (!password) {
+                errorElement.textContent = 'Введите пароль';
                 return;
             }
             
             if (password.length < 6) {
-                showNotification('Пароль должен быть не менее 6 символов');
+                errorElement.textContent = 'Пароль должен быть не менее 6 символов';
                 return;
             }
             
             if (password !== confirm) {
-                showNotification('Пароли не совпадают');
+                errorElement.textContent = 'Пароли не совпадают';
                 return;
             }
             
-            // Проверяем, существует ли пользователь
-            const userRef = database.ref('users/' + username);
-            const snapshot = await userRef.once('value');
+            isProcessing = true;
+            const registerButton = document.getElementById('registerButton');
+            registerButton.disabled = true;
+            registerButton.textContent = 'Регистрация...';
             
-            if (snapshot.exists()) {
-                showNotification('Пользователь с таким именем уже существует');
-                return;
+            try {
+                // Проверяем, существует ли пользователь
+                const userRef = database.ref('users/' + username);
+                const snapshot = await userRef.once('value');
+                
+                if (snapshot.exists()) {
+                    errorElement.textContent = 'Пользователь с таким именем уже существует';
+                    return;
+                }
+                
+                // Создаем пользователя
+                const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                await userRef.set({
+                    id: userId,
+                    username: username,
+                    password: password,
+                    createdAt: Date.now()
+                });
+                
+                // Автоматически логинимся
+                await loginUser(username, password);
+                
+            } catch (error) {
+                console.error('Ошибка регистрации:', error);
+                errorElement.textContent = 'Ошибка регистрации. Попробуйте позже.';
+                showNotification('Ошибка регистрации', true);
+            } finally {
+                isProcessing = false;
+                registerButton.disabled = false;
+                registerButton.textContent = 'Зарегистрироваться';
             }
-            
-            // Создаем пользователя
-            const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            await userRef.set({
-                id: userId,
-                username: username,
-                password: password, // В реальном приложении пароль должен хешироваться!
-                createdAt: Date.now()
-            });
-            
-            // Автоматически логинимся
-            loginUser(username, password);
         }
         
         async function login() {
+            if (isProcessing) return;
+            
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;
+            const errorElement = document.getElementById('loginError');
             
-            if (!username || !password) {
-                showNotification('Введите имя пользователя и пароль');
+            errorElement.textContent = '';
+            
+            if (!username) {
+                errorElement.textContent = 'Введите имя пользователя';
                 return;
             }
             
-            loginUser(username, password);
+            if (!password) {
+                errorElement.textContent = 'Введите пароль';
+                return;
+            }
+            
+            isProcessing = true;
+            const loginButton = document.getElementById('loginButton');
+            loginButton.disabled = true;
+            loginButton.textContent = 'Вход...';
+            
+            try {
+                await loginUser(username, password);
+            } catch (error) {
+                console.error('Ошибка входа:', error);
+                if (error.message === 'Пользователь не найден') {
+                    errorElement.textContent = 'Пользователь не найден';
+                } else if (error.message === 'Неверный пароль') {
+                    errorElement.textContent = 'Неверный пароль';
+                } else {
+                    errorElement.textContent = 'Ошибка входа. Проверьте данные.';
+                }
+            } finally {
+                isProcessing = false;
+                loginButton.disabled = false;
+                loginButton.textContent = 'Войти';
+            }
         }
         
         async function loginUser(username, password) {
@@ -1201,16 +1312,14 @@
                 const snapshot = await userRef.once('value');
                 
                 if (!snapshot.exists()) {
-                    showNotification('Пользователь не найден');
-                    return;
+                    throw new Error('Пользователь не найден');
                 }
                 
                 const userData = snapshot.val();
                 
-                // Проверяем пароль (в реальном приложении должно быть шифрование!)
+                // Проверяем пароль
                 if (userData.password !== password) {
-                    showNotification('Неверный пароль');
-                    return;
+                    throw new Error('Неверный пароль');
                 }
                 
                 // Устанавливаем текущего пользователя
@@ -1232,8 +1341,8 @@
                 showNotification('Добро пожаловать, ' + username + '!');
                 
             } catch (error) {
-                console.error('Ошибка входа:', error);
-                showNotification('Ошибка входа');
+                console.error('Ошибка входа:', error.message);
+                throw error;
             }
         }
         
@@ -1247,22 +1356,35 @@
                     document.getElementById('tabs').style.display = 'flex';
                     initChat();
                 } catch (e) {
+                    console.error('Ошибка восстановления сессии:', e);
                     localStorage.removeItem('chat_user');
                 }
             }
         }
         
+        function logout() {
+            if (userStatusRef) {
+                userStatusRef.update({ online: false });
+            }
+            currentUser = null;
+            localStorage.removeItem('chat_user');
+            document.getElementById('mainInterface').style.display = 'none';
+            document.getElementById('authContainer').style.display = 'flex';
+            showLogin();
+        }
+        
         // ============ ОСНОВНЫЕ ФУНКЦИИ ============
-        function showNotification(text) {
+        function showNotification(text, isError = false) {
             const notification = document.getElementById('notification');
             const notificationText = document.getElementById('notificationText');
             
             notificationText.textContent = text;
+            notification.className = 'notification' + (isError ? ' error' : '');
             notification.style.display = 'block';
             
             setTimeout(() => {
                 notification.style.display = 'none';
-            }, 2000);
+            }, 3000);
         }
         
         function updateUnreadBadges() {
@@ -1296,9 +1418,7 @@
             ],
             smileys: [
                 "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃",
-                "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
-                "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
-                "🤐", "🤨", "😐", "😑", "😶", "😏", "😒", "🙄", "😬", "🤥"
+                "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙"
             ],
             people: [
                 "👶", "🧒", "👦", "👧", "🧑", "👨", "👩", "🧔", "👨‍🦰", "👩‍🦰",
@@ -1346,15 +1466,17 @@
             showEmojiCategory('popular');
             
             document.getElementById('emojiButton').addEventListener('click', toggleEmojiPanel);
-            document.querySelector('.private-emoji-btn').addEventListener('click', toggleEmojiPanel);
+            document.getElementById('privateEmojiButton').addEventListener('click', toggleEmojiPanel);
             
             document.addEventListener('click', (e) => {
                 const emojiPanel = document.getElementById('emojiPanel');
                 const emojiBtn = document.getElementById('emojiButton');
-                const privateEmojiBtn = document.querySelector('.private-emoji-btn');
+                const privateEmojiBtn = document.getElementById('privateEmojiButton');
                 
                 if (emojiPanel.style.display === 'flex' && 
                     !emojiPanel.contains(e.target) && 
+                    e.target !== emojiBtn &&
+                    e.target !== privateEmojiBtn &&
                     !emojiBtn.contains(e.target) &&
                     !privateEmojiBtn.contains(e.target)) {
                     emojiPanel.style.display = 'none';
@@ -1405,7 +1527,12 @@
         // ============ ГОЛОСОВЫЕ СООБЩЕНИЯ ============
         function initVoiceMessages() {
             const voiceButton = document.getElementById('voiceButton');
-            const privateVoiceButton = document.querySelector('.private-voice-btn');
+            const privateVoiceButton = document.getElementById('privateVoiceButton');
+            
+            if (!voiceButton || !privateVoiceButton) {
+                console.error('Кнопки голосовых сообщений не найдены');
+                return;
+            }
             
             voiceButton.addEventListener('mousedown', startRecording);
             voiceButton.addEventListener('mouseup', stopRecording);
@@ -1437,6 +1564,8 @@
         }
         
         async function startRecording() {
+            if (isRecording || isProcessing) return;
+            
             try {
                 showNotification('Начинаем запись...');
                 
@@ -1453,6 +1582,7 @@
                 });
                 
                 audioChunks = [];
+                isRecording = true;
                 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
@@ -1461,15 +1591,16 @@
                 };
                 
                 mediaRecorder.onstop = async () => {
+                    isRecording = false;
                     if (audioChunks.length === 0) {
-                        showNotification('Запись слишком короткая');
+                        showNotification('Запись слишком короткая', true);
                         return;
                     }
                     
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     
                     if (audioBlob.size < 1000) {
-                        showNotification('Запись слишком короткая');
+                        showNotification('Запись слишком короткая', true);
                         return;
                     }
                     
@@ -1480,20 +1611,21 @@
                 
                 mediaRecorder.onerror = (event) => {
                     console.error('Ошибка записи:', event.error);
-                    showNotification('Ошибка при записи');
+                    showNotification('Ошибка при записи', true);
+                    isRecording = false;
                 };
                 
                 mediaRecorder.start(100);
-                isRecording = true;
                 
                 document.getElementById('voiceButton').classList.add('recording');
                 document.getElementById('recordingIndicator').classList.add('active');
-                document.querySelector('.private-voice-btn').classList.add('recording');
+                document.getElementById('privateVoiceButton').classList.add('recording');
                 document.querySelector('.private-recording-indicator').classList.add('active');
                 
             } catch (err) {
                 console.error('Ошибка доступа к микрофону:', err);
-                showNotification('Не удалось получить доступ к микрофону');
+                showNotification('Не удалось получить доступ к микрофону', true);
+                isRecording = false;
             }
         }
         
@@ -1501,14 +1633,12 @@
             if (mediaRecorder && isRecording) {
                 try {
                     mediaRecorder.stop();
-                    isRecording = false;
                     
                     document.getElementById('voiceButton').classList.remove('recording');
                     document.getElementById('recordingIndicator').classList.remove('active');
-                    document.querySelector('.private-voice-btn').classList.remove('recording');
+                    document.getElementById('privateVoiceButton').classList.remove('recording');
                     document.querySelector('.private-recording-indicator').classList.remove('active');
                     
-                    showNotification('Обрабатываем запись...');
                 } catch (error) {
                     console.error('Ошибка остановки записи:', error);
                 }
@@ -1516,6 +1646,9 @@
         }
         
         async function uploadAndSendVoiceMessage(audioBlob) {
+            if (isProcessing) return;
+            isProcessing = true;
+            
             try {
                 showUploadProgress(0);
                 
@@ -1531,8 +1664,9 @@
                     },
                     (error) => {
                         console.error('Ошибка загрузки аудио:', error);
-                        showNotification('Ошибка загрузки аудио');
+                        showNotification('Ошибка загрузки аудио', true);
                         hideUploadProgress();
+                        isProcessing = false;
                     },
                     async () => {
                         const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
@@ -1561,13 +1695,15 @@
                         
                         hideUploadProgress();
                         showNotification('Голосовое сообщение отправлено!');
+                        isProcessing = false;
                     }
                 );
                 
             } catch (error) {
                 console.error('Ошибка отправки голосового сообщения:', error);
-                showNotification('Ошибка отправки голосового сообщения');
+                showNotification('Ошибка отправки голосового сообщения', true);
                 hideUploadProgress();
+                isProcessing = false;
             }
         }
         
@@ -1620,7 +1756,7 @@
             });
             
             currentAudio.addEventListener('error', () => {
-                showNotification('Ошибка воспроизведения аудио');
+                showNotification('Ошибка воспроизведения аудио', true);
                 button.innerHTML = '▶️';
                 progressBar.style.width = '0%';
                 currentAudio = null;
@@ -1632,35 +1768,40 @@
                 })
                 .catch(error => {
                     console.error('Ошибка воспроизведения:', error);
-                    showNotification('Не удалось воспроизвести аудио');
+                    showNotification('Не удалось воспроизвести аудио', true);
                 });
         }
         
         // ============ ФАЙЛЫ И ФОТО ============
         function initFileUpload() {
             const fileButton = document.getElementById('fileButton');
-            const privateFileButton = document.querySelector('.private-upload-btn');
+            const privateFileButton = document.getElementById('privateFileButton');
             const fileInput = document.getElementById('fileInput');
             const privateFileInput = document.getElementById('privateFileInput');
             const photoButton = document.getElementById('photoButton');
-            const privatePhotoButton = document.querySelector('.private-photo-btn');
+            const privatePhotoButton = document.getElementById('privatePhotoButton');
             const photoInput = document.getElementById('photoInput');
             const privatePhotoInput = document.getElementById('privatePhotoInput');
             
+            if (!fileButton || !privateFileButton || !photoButton || !privatePhotoButton) {
+                console.error('Кнопки загрузки не найдены');
+                return;
+            }
+            
             fileButton.addEventListener('click', () => {
-                fileInput.click();
+                if (!isProcessing) fileInput.click();
             });
             
             privateFileButton.addEventListener('click', () => {
-                privateFileInput.click();
+                if (!isProcessing) privateFileInput.click();
             });
             
             photoButton.addEventListener('click', () => {
-                photoInput.click();
+                if (!isProcessing) photoInput.click();
             });
             
             privatePhotoButton.addEventListener('click', () => {
-                privatePhotoInput.click();
+                if (!isProcessing) privatePhotoInput.click();
             });
             
             fileInput.addEventListener('change', async (e) => {
@@ -1697,15 +1838,17 @@
         }
         
         async function handleFileUpload(file, isImage = false) {
+            if (isProcessing) return;
+            
             if (!file) return;
             
             if (file.size > 50 * 1024 * 1024) {
-                showNotification('Файл должен быть меньше 50MB');
+                showNotification('Файл должен быть меньше 50MB', true);
                 return;
             }
             
             if (isImage && !file.type.startsWith('image/')) {
-                showNotification('Пожалуйста, выберите изображение');
+                showNotification('Пожалуйста, выберите изображение', true);
                 return;
             }
             
@@ -1713,6 +1856,9 @@
         }
         
         async function uploadAndSendFile(file, isImage = false) {
+            if (isProcessing) return;
+            isProcessing = true;
+            
             try {
                 showUploadProgress(0);
                 
@@ -1729,8 +1875,9 @@
                     },
                     (error) => {
                         console.error('Ошибка загрузки файла:', error);
-                        showNotification('Ошибка загрузки файла');
+                        showNotification('Ошибка загрузки файла', true);
                         hideUploadProgress();
+                        isProcessing = false;
                     },
                     async () => {
                         const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
@@ -1767,13 +1914,15 @@
                         
                         hideUploadProgress();
                         showNotification('Файл отправлен!');
+                        isProcessing = false;
                     }
                 );
                 
             } catch (error) {
                 console.error('Ошибка отправки файла:', error);
-                showNotification('Ошибка отправки файла');
+                showNotification('Ошибка отправки файла', true);
                 hideUploadProgress();
+                isProcessing = false;
             }
         }
         
@@ -1907,36 +2056,47 @@
         }
         
         async function createGroup() {
+            if (isProcessing) return;
+            
             const name = document.getElementById('groupNameInput').value.trim();
             const description = document.getElementById('groupDescInput').value.trim();
             
             if (!name) {
-                showNotification('Введите название группы');
+                showNotification('Введите название группы', true);
                 return;
             }
             
             if (name.length < 3) {
-                showNotification('Название группы должно быть не менее 3 символов');
+                showNotification('Название группы должно быть не менее 3 символов', true);
                 return;
             }
             
-            const groupId = 'group_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            isProcessing = true;
             
-            await database.ref('groups/' + groupId).set({
-                id: groupId,
-                name: name,
-                description: description || '',
-                creator: currentUser.id,
-                creatorName: currentUser.username,
-                createdAt: Date.now(),
-                members: {
-                    [currentUser.id]: true
-                }
-            });
-            
-            closeCreateGroupModal();
-            showNotification('Группа создана!');
-            loadGroups();
+            try {
+                const groupId = 'group_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                await database.ref('groups/' + groupId).set({
+                    id: groupId,
+                    name: name,
+                    description: description || '',
+                    creator: currentUser.id,
+                    creatorName: currentUser.username,
+                    createdAt: Date.now(),
+                    members: {
+                        [currentUser.id]: true
+                    }
+                });
+                
+                closeCreateGroupModal();
+                showNotification('Группа создана!');
+                loadGroups();
+            } catch (error) {
+                console.error('Ошибка создания группы:', error);
+                showNotification('Ошибка создания группы', true);
+            } finally {
+                isProcessing = false;
+            }
         }
         
         async function loadGroups() {
@@ -2025,33 +2185,51 @@
         }
         
         // ============ ОБЩИЙ ЧАТ И ГРУППЫ ============
-        function sendMessage() {
+        async function sendMessage() {
+            if (isProcessing) return;
+            
             const messageInput = document.getElementById('messageInput');
             const messageText = messageInput.value.trim();
             
-            if (!messageText) return;
-            
-            const message = {
-                text: messageText,
-                user: currentUser.username,
-                userId: currentUser.id,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                timestamp: Date.now(),
-                type: 'text'
-            };
-            
-            if (currentGroup) {
-                message.groupId = currentGroup;
-                database.ref('group_messages/' + currentGroup).push(message);
-            } else {
-                database.ref('messages/public').push(message);
+            if (!messageText) {
+                showNotification('Введите сообщение', true);
+                return;
             }
             
-            messageInput.value = '';
-            messageInput.focus();
+            isProcessing = true;
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = true;
             
-            document.getElementById('emojiPanel').style.display = 'none';
-            emojiPanelVisible = false;
+            try {
+                const message = {
+                    text: messageText,
+                    user: currentUser.username,
+                    userId: currentUser.id,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    timestamp: Date.now(),
+                    type: 'text'
+                };
+                
+                if (currentGroup) {
+                    message.groupId = currentGroup;
+                    await database.ref('group_messages/' + currentGroup).push(message);
+                } else {
+                    await database.ref('messages/public').push(message);
+                }
+                
+                messageInput.value = '';
+                messageInput.focus();
+                
+                document.getElementById('emojiPanel').style.display = 'none';
+                emojiPanelVisible = false;
+                
+            } catch (error) {
+                console.error('Ошибка отправки сообщения:', error);
+                showNotification('Ошибка отправки сообщения', true);
+            } finally {
+                isProcessing = false;
+                sendButton.disabled = false;
+            }
         }
         
         function addMessageToUI(message, type = 'public') {
@@ -2107,8 +2285,6 @@
             const usersList = document.getElementById('usersList');
             usersList.innerHTML = '<div style="text-align: center; color: #666; padding: 40px;">Загрузка пользователей...</div>';
             
-            let onlineCount = 0;
-            
             database.ref('users').on('value', (usersSnapshot) => {
                 const allUsers = usersSnapshot.val() || {};
                 usersList.innerHTML = '';
@@ -2136,8 +2312,6 @@
                     userItem.addEventListener('click', () => openPrivateChat(userData.id, username));
                     usersList.appendChild(userItem);
                 });
-                
-                document.getElementById('privateOnlineCount').textContent = onlineCount;
                 
                 if (Object.keys(allUsers).length <= 1) {
                     usersList.innerHTML = `
@@ -2178,31 +2352,47 @@
             });
         }
         
-        function sendPrivateMessage() {
-            if (!currentPrivateChat) return;
+        async function sendPrivateMessage() {
+            if (isProcessing) return;
             
             const input = document.getElementById('privateMessageInput');
             const messageText = input.value.trim();
             
-            if (!messageText) return;
+            if (!messageText) {
+                showNotification('Введите сообщение', true);
+                return;
+            }
             
-            const chatId = getChatId(currentUser.id, currentPrivateChat);
-            const message = {
-                text: messageText,
-                from: currentUser.id,
-                to: currentPrivateChat,
-                fromName: currentUser.username,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                timestamp: Date.now(),
-                type: 'text'
-            };
+            isProcessing = true;
+            const privateSendButton = document.getElementById('privateSendButton');
+            privateSendButton.disabled = true;
             
-            database.ref('private_messages/' + chatId).push(message);
-            input.value = '';
-            input.focus();
-            
-            document.getElementById('emojiPanel').style.display = 'none';
-            emojiPanelVisible = false;
+            try {
+                const chatId = getChatId(currentUser.id, currentPrivateChat);
+                const message = {
+                    text: messageText,
+                    from: currentUser.id,
+                    to: currentPrivateChat,
+                    fromName: currentUser.username,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    timestamp: Date.now(),
+                    type: 'text'
+                };
+                
+                await database.ref('private_messages/' + chatId).push(message);
+                input.value = '';
+                input.focus();
+                
+                document.getElementById('emojiPanel').style.display = 'none';
+                emojiPanelVisible = false;
+                
+            } catch (error) {
+                console.error('Ошибка отправки личного сообщения:', error);
+                showNotification('Ошибка отправки сообщения', true);
+            } finally {
+                isProcessing = false;
+                privateSendButton.disabled = false;
+            }
         }
         
         function getChatId(userId1, userId2) {
@@ -2213,6 +2403,8 @@
         function initTabs() {
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.addEventListener('click', () => {
+                    if (isProcessing) return;
+                    
                     const tabName = tab.dataset.tab;
                     
                     if (tabName === 'public') {
@@ -2235,7 +2427,8 @@
                     if (tabName === 'public') {
                         document.getElementById('publicChat').style.display = 'flex';
                         if (currentGroup) {
-                            document.getElementById('currentGroupName').textContent = '👥 ' + groups[currentGroup]?.name || 'Группа';
+                            const groupName = groups[currentGroup] ? groups[currentGroup].name : 'Группа';
+                            document.getElementById('currentGroupName').textContent = '👥 ' + groupName;
                             document.getElementById('leaveGroupBtn').style.display = 'block';
                         } else {
                             document.getElementById('currentGroupName').textContent = '💬 Общий чат';
@@ -2302,7 +2495,7 @@
             // События отправки сообщений
             document.getElementById('sendButton').addEventListener('click', sendMessage);
             document.getElementById('messageInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !isProcessing) {
                     e.preventDefault();
                     sendMessage();
                 }
@@ -2310,9 +2503,45 @@
             
             document.getElementById('privateSendButton').addEventListener('click', sendPrivateMessage);
             document.getElementById('privateMessageInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey && !isProcessing) {
                     e.preventDefault();
                     sendPrivateMessage();
+                }
+            });
+            
+            // Добавляем Enter для полей авторизации
+            document.getElementById('loginUsername')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !isProcessing) {
+                    e.preventDefault();
+                    login();
+                }
+            });
+            
+            document.getElementById('loginPassword')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !isProcessing) {
+                    e.preventDefault();
+                    login();
+                }
+            });
+            
+            document.getElementById('registerUsername')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !isProcessing) {
+                    e.preventDefault();
+                    register();
+                }
+            });
+            
+            document.getElementById('registerPassword')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !isProcessing) {
+                    e.preventDefault();
+                    register();
+                }
+            });
+            
+            document.getElementById('registerConfirm')?.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !isProcessing) {
+                    e.preventDefault();
+                    register();
                 }
             });
             
