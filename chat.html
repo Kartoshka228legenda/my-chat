@@ -1050,14 +1050,14 @@
 
             <!-- Панель ввода -->
             <div class="input-container">
-                <button class="upload-btn" id="fileButton" title="Отправить файл">📎</button>
+                <button class="upload-btn" id="fileButton" title="Отправить файл"></button>
                 <input type="file" id="fileInput" class="file-input-hidden" multiple>
                 
-                <button class="upload-btn" id="photoButton" title="Отправить фото">📷</button>
+                <button class="upload-btn" id="photoButton" title="Отправить фото"></button>
                 <input type="file" id="photoInput" accept="image/*" class="file-input-hidden" multiple>
                 
                 <button class="voice-record-btn" id="voiceButton" title="Голосовое сообщение">
-                    🎤
+                    
                     <span class="recording-indicator" id="recordingIndicator"></span>
                 </button>
                 
@@ -1102,14 +1102,14 @@
             </div>
             
             <div class="input-container">
-                <button class="upload-btn" id="privateFileButton" title="Отправить файл">📎</button>
+                <button class="upload-btn" id="privateFileButton" title="Отправить файл"></button>
                 <input type="file" id="privateFileInput" class="file-input-hidden" multiple>
                 
                 <button class="upload-btn" id="privatePhotoButton" title="Отправить фото">📷</button>
                 <input type="file" id="privatePhotoInput" accept="image/*" class="file-input-hidden" multiple>
                 
                 <button class="voice-record-btn" id="privateVoiceButton" title="Голосовое сообщение">
-                    🎤
+                   
                     <span class="recording-indicator private-recording-indicator"></span>
                 </button>
                 
@@ -2013,12 +2013,12 @@
         function getFileIcon(fileType) {
             if (fileType.startsWith('image/')) return '🖼️';
             if (fileType.includes('pdf')) return '📕';
-            if (fileType.includes('word') || fileType.includes('document')) return '📄';
-            if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
-            if (fileType.includes('powerpoint') || fileType.includes('presentation')) return '📑';
+            if (fileType.includes('word') || fileType.includes('document')) return '';
+            if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '';
+            if (fileType.includes('powerpoint') || fileType.includes('presentation')) return '';
             if (fileType.includes('audio')) return '🎵';
             if (fileType.includes('video')) return '🎬';
-            if (fileType.includes('zip') || fileType.includes('rar') || fileType.includes('archive')) return '🗜️';
+            if (fileType.includes('zip') || fileType.includes('rar') || fileType.includes('archive')) return '';
             return '📁';
         }
         
